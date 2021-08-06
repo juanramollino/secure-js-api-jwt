@@ -15,10 +15,7 @@ export const Login = () => {
   const history = useHistory();
 
   const onClickLogin = () => {
-    headers.set(
-      "Authorization",
-      "Basic " + base64.encode(userName + ":" + password)
-    );
+    headers.set("Authorization", "Basic " + base64.encode(userName + ":" + password));
     fetch(url, { headers: headers, method: "POST" })
       .then((res) => (res.status === 200 ? history.push("/books") : res.json()))
       .then((json) => setLoginError(json.message))
