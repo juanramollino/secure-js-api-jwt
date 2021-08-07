@@ -1,9 +1,12 @@
+require("dotenv").config({path:"./variables.env"});
 const jsonfile = require("jsonfile");
 const users = "./database/users.json";
 const inventory = "./database/books.json";
 const bcrypt = require("bcrypt");
+const Constants = require("./constants");
+const jwt = require("jsonwebtoken");
 
-exports.getUserByUsername = async function (username) {
+var getUserByUsername = exports.getUserByUsername = async function (username) {
   try {
     const allUsers = await jsonfile.readFile(users);
     const filteredUserArray = allUsers.filter(
@@ -56,4 +59,50 @@ exports.addBook = async function (book) {
   } catch(err) {
     return err;
   }
-}
+};
+
+const getUserNameFromToken = (token) => jwt.decode(token)["sub"];
+
+exports.generateToken = async function(prevToken, userName) {
+  const name = userName || getUserNameFromToken(prevToken);
+  const user = await getUserByUsername(name);
+  const options = {
+    algorithm: process.env.ALOGRITHM,
+    expiresIn: process.env.EXPIRY,
+    issuer: process.env.ISSUER,
+    subject: userName || user.username,
+    audience: user.role === "admin" ? Constants.JWT_OPTIONS.ADMIN_AUDIENCE : Constants.JWT_OPTIONS.MEMBER_AUDIENCE
+  }
+  return jwt.sign({}, process.env.SECRET, options)
+};
+
+exports.verifyToken = (req, res, next) => {
+  const token = req.cookies.token;
+  if (!token) {
+    res.status(401).send({ message: "Not authorized to acces data"});
+  }
+  else {
+    jwt.verify(token, process.env.SECRET, function(err) {
+      if (err) {
+        res.clearCookie("token");
+        res.status(401).send({ message: "Please login again"})
+      } else next();
+    });
+  }
+};
+
+exports.getAudienceFromToken = (token) => jwt.decode(token)["aud"];
+
+exports.getFavoriteBooksForUser = async function (token) {
+  const username = getUserNameFromToken(token);
+  const user = await getUserByUsername(username);
+  const favoriteBookIds = user["favorite"];
+  const favoriteBooks = [];
+  if (favoriteBookIds.length === 0) return favoriteBooks;
+  
+  const allBooks = await jsonfile.readFile(inventory);
+  favoriteBookIds.forEach((id) => 
+    favoriteBooks.push(allBooks.filter((book) => id === book.id)[0])
+  );
+  return(favoriteBooks);
+};
