@@ -1,7 +1,6 @@
 const express = require("express");
 const cors = require("cors");
 const { uuid } = require("uuidv4");
-const cookieParser = require("cookie-parser");
 const {
   getUserByUsername,
   isEmptyObject,
@@ -12,32 +11,35 @@ const {
   generateToken,
   verifyToken,
   getAudienceFromToken,
-  getFavoriteBooksForUser
+  getFavoriteBooksForUser,
 } = require("./shared");
 const Constants = require("./constants");
+const { TokenExpiredError } = require("jsonwebtoken");
 const app = express();
 const port = process.env.PORT || 5000;
 app.listen(port, () => console.log(`Listening on port ${port}`));
 
 app.use(express.json());
-//app.use(cors()); // because we set the proxy variable in the package.json
-app.use(cookieParser());
+app.use(cors());
 
 app.get("/users", verifyToken, (req, res) => {
+  // Get token from Auth header.
+  const token = req.headers.authorization.split(" ")[1];
+
   // Check if the user has access to this API
-  if (getAudienceFromToken(req.cookies.token).includes(Constants.SHOW_USERS)) {
+  if (getAudienceFromToken(token).includes(Constants.SHOW_USERS))
+  {
     // Get all users. Then check if the data contains at least one users, and reurn.
     // Ohterwise, return a status code of 500 and an empty array.
     getAllUsers().then((users) => {
       if (users && users.length > 0) {
-        generateToken(req.cookies.token, null,).then((token) => {
-          res.cookie("token", token, { httpOnly: true });
-          res.status(200).send({ users: users })
+        generateToken(token, null,).then((token) => {
+           res.status(200).send({ users: users, token: token })
         });
       }
-      else res.status(500).send({ users: [] });
+      else res.status(500).send({ users: [], token: token });
     })
-  } else res.status(403).send({ message: "Not authorized to view users" });
+  } else res.status(403).send({ message: "Not authorized to view users", token: token });
 
 
 });
@@ -47,15 +49,16 @@ app.get("/books", verifyToken, (req, res) => {
   // Get all books and check if the data contains at least a book.
   // Otherwise, return an empty array.
   getAllBooks().then(books => {
+    const token = req.headers.authorization.split(" ")[1];
     if (books && books.length > 0) {
-      generateToken(req.cookies.token, null).then(token => {
-        res.cookie("token", token, { httpOnly: true });
-        res.status(200).send({ books: books });
+      generateToken(token, null).then(token => {
+        res.status(200).send({ books: books, token: token });
       });
     }
-    else res.status(500).send({ books: [] });
+    else res.status(500).send({ books: [], token: token });
   })
 });
+
 
 app.post("/login", (req, res) => {
   let base64Encoding = req.headers.authorization.split(" ")[1];
@@ -73,8 +76,7 @@ app.post("/login", (req, res) => {
             .send({ message: "username or password is incorrect" });
         else {
           generateToken(null, username).then((token) => {
-            res.cookie("token", token, { httpOnly: true });
-            res.status(200).send({ username: user.username, role: user.role });
+            res.status(200).send({ username: user.username, role: user.role, token: token });
           });
         }
       });
@@ -89,10 +91,10 @@ app.get("/logout", verifyToken, (req, res) => {
 });
 
 app.get("/favorite", verifyToken, (req, res) => {
-  getFavoriteBooksForUser(req.cookies.token).then( books =>
-    generateToken(req.cookies.token, null).then( token => {
-        res.cookie("token", token, { httpOnly: true});
-        res.status(200).send( { favorites: books });
+  const token = req.headers.authorization.split(" ")[1];
+  getFavoriteBooksForUser(token).then( books =>
+    generateToken(token, null).then( token => {
+        res.status(200).send( { favorites: books, token: token });
     })
   );
 });
@@ -104,17 +106,17 @@ app.post("/book", verifyToken, (req, res) => {
   }
   else {
     // Check if the user has access to this API
-    if (getAudienceFromToken(req.cookies.token).includes(Constants.ADD_BOOK)) {
+    const token = req.headers.authorization.split(" ")[1];
+    if (getAudienceFromToken(token).includes(Constants.ADD_BOOK)) {
       addBook({ name: req.body.name, author: req.body.author, id: uuid() }).then(
         err => {
-          if (err) res.status(500).send({ message: "Cannot add this book." });
+          if (err) res.status(500).send({ message: "Cannot add this book.", token: TokenExpiredError });
           else {
-            generateToken(req.cookies.token, null,).then((token) => {
-              res.cookie("token", token, { httpOnly: true });
-              res.status(200).send({ message: "Book added succesfully" });
+            generateToken(token, null,).then((token) => {
+              res.status(200).send({ message: "Book added succesfully", token: token });
             });
           }
         });
-    } else res.status(403).send({ message: "Not authorized to view users" });
+    } else res.status(403).send({ message: "Not authorized to view users", token: token });
   }
 });

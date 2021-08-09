@@ -2,16 +2,30 @@ import React, { useState, useEffect } from "react";
 import { Button, Grid, Paper, Typography } from "@material-ui/core";
 import "../styles.css";
 import { AppHeader } from "./AppHeader";
+import { constructHeader, updateAppSettings } from "../util.js";
+import { useHistory } from "react-router-dom";
 const url = "http://localhost:5000/books";
 
 export const Books = () => {
   const [books, setBooks] = useState([]);
+  const history = useHistory();
+
+  const redirect = () => {
+    localStorage.clear();
+    history.push("/login");
+  };
 
   useEffect(() => {
-    fetch(url)
-      .then(res => res.json())
-      .then(json => setBooks([...json.books]))
-    .catch(err => console.log("Error fetching books ", err.message))
+    fetch(url, { headers: constructHeader() })
+      .then((res) => (res.status === 401 ? redirect() : res.json()))
+      .then((json) => {
+        if (json) {
+          updateAppSettings(json.token);
+          setBooks([...json.books]);
+        } 
+      })
+      .catch((err) => console.log("Error fetching books ", err.message));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (

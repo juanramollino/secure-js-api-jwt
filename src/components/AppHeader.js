@@ -1,23 +1,17 @@
 import React from "react";
 import "../styles.css";
-import {
-  AppBar,
-  Tab,
-  Tabs,
-  MenuItem,
-  IconButton,
-  Menu,
-  Toolbar,
-} from "@material-ui/core";
+import { AppBar, Tab, Tabs, MenuItem, IconButton, Menu, Toolbar, } from "@material-ui/core";
 import { useHistory } from "react-router-dom";
 import AccountCircle from "@material-ui/icons/AccountCircle";
+import { isMember, constructHeader } from "../util";
+const url = "http://localhost:5000/logout";
 
 export const AppHeader = ({ tabValue }) => {
   const tabs = ["/books", "/favorite", "/book", "/users"];
   const [anchorEl, setAnchorEl] = React.useState(null);
   const open = Boolean(anchorEl);
-
-  let history = useHistory();
+  const history = useHistory();
+  const shouldDisable = isMember();
 
   const handleClick = (event, newValue) => history.push(tabs[newValue]);
 
@@ -27,6 +21,13 @@ export const AppHeader = ({ tabValue }) => {
     setAnchorEl(null);
   };
 
+  const onClickLogout = () => {
+    fetch(url, {headers: constructHeader }).then((res) => {
+      localStorage.clear();
+      history.push("/login");
+    });
+  };
+
   return (
     <div style={{ flexGrow: 1 }}>
         <AppBar position="fixed">
@@ -34,8 +35,8 @@ export const AppHeader = ({ tabValue }) => {
             <Tabs value={tabValue} onChange={handleClick}>
               <Tab label="Books" />
               <Tab label="Favorite" />
-              <Tab label="Add Book" />
-              <Tab label="Users" />
+              <Tab label="Add Book" disabled={shouldDisable} />
+              <Tab label="Users" disabled={shouldDisable} />
             </Tabs>
             <div style={{ flexGrow: 1 }} />
             <IconButton
@@ -53,8 +54,8 @@ export const AppHeader = ({ tabValue }) => {
               open={open}
               onClose={handleClose}
             >
-              <MenuItem>Profile</MenuItem>
-              <MenuItem onClick={() => console.log("Clicked Logout!")}>
+              <MenuItem>{localStorage.getItem("displayName")}</MenuItem>
+              <MenuItem onClick={onClickLogout}>
                 Logout
               </MenuItem>
             </Menu>
